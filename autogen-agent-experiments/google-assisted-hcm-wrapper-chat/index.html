@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FusionAI Chat</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fb;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-container {
+            max-width: 1000px;
+            margin: 20px auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px);
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            font-size: 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+        }
+        
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #ccc;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-dot.connected {
+            background-color: #2ecc71;
+        }
+        
+        .status-dot.disconnected {
+            background-color: #e74c3c;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            position: relative;
+            word-wrap: break-word;
+        }
+        
+        .message.user {
+            background-color: #3498db;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message.bot {
+            background-color: #ecf0f1;
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message-input {
+            display: flex;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-top: 1px solid #eee;
+        }
+        
+        .message-input input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            font-size: 1rem;
+            outline: none;
+        }
+        
+        .message-input input:focus {
+            border-color: #3498db;
+        }
+        
+        .send-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            margin-left: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+        
+        .send-button:hover {
+            background-color: #2980b9;
+        }
+        
+        .send-button:active {
+            transform: scale(0.95);
+        }
+        
+        .send-button svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .typing-indicator {
+            padding: 10px 15px;
+            background-color: #ecf0f1;
+            border-radius: 15px;
+            margin-right: auto;
+            margin-bottom: 15px;
+            display: none;
+            align-items: center;
+            max-width: 100px;
+        }
+        
+        .typing-dot {
+            height: 8px;
+            width: 8px;
+            background-color: #888;
+            border-radius: 50%;
+            margin: 0 3px;
+            animation: typing-dot 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        .connection-controls {
+            margin: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .connection-controls input {
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .connection-controls button {
+            padding: 8px 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        @keyframes typing-dot {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-5px);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .chat-container {
+                margin: 0;
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            .chat-header {
+                border-radius: 0;
+            }
+            
+            .message {
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-controls">
+        <input type="text" id="ws-url" placeholder="WebSocket URL (e.g., ws://localhost:8000/ws)" value="ws://localhost:8000/ws">
+        <button id="connect-button">Connect</button>
+    </div>
+    
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>FusionAI Ag2 App</h2>
+            <div class="status-indicator">
+                <div id="status-dot" class="status-dot disconnected"></div>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+            <div class="message bot">
+                Hello! I'm an AutoGen-powered assistant. How can I help you today?
+            </div>
+        </div>
+        <div id="typing-indicator" class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+        <div class="message-input">
+            <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off">
+            <button id="send-button" class="send-button">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            const typingIndicator = document.getElementById('typing-indicator');
+            const wsUrlInput = document.getElementById('ws-url');
+            const connectButton = document.getElementById('connect-button');
+            
+            let ws = null;
+            
+            // Function to connect WebSocket
+            function connectWebSocket() {
+                // Close existing connection if any
+                if (ws) {
+                    ws.close();
+                }
+                
+                // Get WebSocket URL from input
+                const wsUrl = wsUrlInput.value.trim();
+                
+                if (!wsUrl) {
+                    alert("Please enter a valid WebSocket URL");
+                    return;
+                }
+                
+                try {
+                    ws = new WebSocket(wsUrl);
+                    
+                    statusText.textContent = 'Connecting...';
+                    
+                    ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        statusDot.classList.remove('disconnected');
+                        statusDot.classList.add('connected');
+                        statusText.textContent = 'Connected';
+                        
+                        // Add a test message to verify connection
+                        displayMessage("Connection established successfully!", 'bot');
+                    };
+                    
+                    ws.onclose = (event) => {
+                        console.log('WebSocket closed', event);
+                        statusDot.classList.remove('connected');
+                        statusDot.classList.add('disconnected');
+                        statusText.textContent = 'Disconnected';
+                    };
+                    
+                    ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        statusText.textContent = 'Error connecting';
+                        displayMessage("Failed to connect to server. Check console for details.", 'bot');
+                    };
+                    
+                    ws.onmessage = (event) => {
+                        console.log('Message received:', event.data);
+                        // Hide typing indicator
+                        typingIndicator.style.display = 'none';
+                        
+                        try {
+                            const data = JSON.parse(event.data);
+                            displayMessage(data.message, data.sender);
+                        } catch (e) {
+                            console.error('Error parsing message:', e);
+                            displayMessage("Received message in unexpected format", 'bot');
+                        }
+                        
+                        // Scroll to the bottom
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    };
+                } catch (error) {
+                    console.error('Error initializing WebSocket:', error);
+                    alert(`Failed to initialize WebSocket: ${error.message}`);
+                }
+            }
+            
+            // Function to display messages
+            function displayMessage(message, sender) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', sender);
+                messageElement.textContent = message;
+                chatMessages.appendChild(messageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Function to send message
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                if (!message) return;
+                
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    displayMessage("Not connected to server. Please connect first.", 'bot');
+                    return;
+                }
+                
+                // Display user message
+                displayMessage(message, 'user');
+                
+                try {
+                    // Send message to server
+                    ws.send(JSON.stringify({
+                        message: message,
+                        sender: 'user'
+                    }));
+                    
+                    // Show typing indicator
+                    typingIndicator.style.display = 'flex';
+                    chatMessages.appendChild(typingIndicator);
+                    
+                    // Clear input
+                    messageInput.value = '';
+                    
+                    // Scroll to the bottom
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    displayMessage("Failed to send message: " + error.message, 'bot');
+                }
+            }
+            
+            // Event listeners
+            sendButton.addEventListener('click', sendMessage);
+            
+            messageInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            connectButton.addEventListener('click', connectWebSocket);
+            
+            // Attempt to detect the correct URL based on window location
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.hostname || 'localhost';
+            const port = '8000'; // Default port
+            wsUrlInput.value = `${protocol}//${host}:${port}/ws`;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AG2 Chat Application</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .chat-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+        }
+        .chat-header {
+            background-color: #f1f1f1;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .user-message {
+            background-color: #dcf8c6;
+            margin-left: auto;
+        }
+        .agent-message {
+            background-color: #f0f0f0;
+        }
+        .system-message {
+            background-color: #ffdddd;
+            text-align: center;
+            margin: 10px auto;
+            font-style: italic;
+        }
+        .chat-input {
+            display: flex;
+            padding: 15px;
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        #sendButton {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #sendButton:hover {
+            background-color: #45a049;
+        }
+        .agent-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .sentiment-indicator {
+            height: 10px;
+            width: 100%;
+            background: linear-gradient(to right, red, yellow, green);
+            position: relative;
+            margin-top: 15px;
+            border-radius: 5px;
+        }
+        .sentiment-marker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: #333;
+            border-radius: 50%;
+            top: -1px;
+            transform: translateX(-50%);
+        }
+    </style>
+</head>
+<body>
+    <h1>AG2 Service Chat</h1>
+    
+    <div class="chat-container">
+        <div class="chat-header">
+            Chat with Service Agents
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="sentiment-indicator">
+            <div class="sentiment-marker" id="sentimentMarker" style="left: 50%;"></div>
+        </div>
+        <div class="chat-input">
+            <input type="text" id="messageInput" placeholder="Type your message here..." autocomplete="off">
+            <button id="sendButton">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const sentimentMarker = document.getElementById('sentimentMarker');
+        
+        // WebSocket connection
+        let socket;
+        let connectionAttempts = 0;
+        const maxAttempts = 5;
+        
+        function connectWebSocket() {
+            if (connectionAttempts >= maxAttempts) {
+                addSystemMessage("Failed to connect to the server after multiple attempts. Please refresh the page.");
+                return;
+            }
+            
+            socket = new WebSocket('ws://localhost:8000/ws');
+            
+            socket.onopen = function(e) {
+                console.log("WebSocket connection established");
+                connectionAttempts = 0;
+                addSystemMessage("Connected to the service chat system.");
+            };
+            
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleResponse(data);
+            };
+            
+            socket.onclose = function(event) {
+                console.log("WebSocket connection closed");
+                
+                // Try to reconnect
+                connectionAttempts++;
+                setTimeout(connectWebSocket, 2000);
+            };
+            
+            socket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+                
+                // Fallback to REST API if WebSocket fails repeatedly
+                if (connectionAttempts >= 3) {
+                    addSystemMessage("Using alternative connection method...");
+                }
+            };
+        }
+        
+        // Try REST API if WebSocket fails
+        async function sendMessageViaREST(message) {
+            try {
+                const response = await fetch('http://localhost:8000/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                handleResponse(data);
+            } catch (error) {
+                console.error("Error sending message via REST:", error);
+                addSystemMessage("Failed to send message. Please try again later.");
+            }
+        }
+        
+        function handleResponse(data) {
+            if (data.error) {
+                addSystemMessage("Error: " + data.error);
+                return;
+            }
+            
+            // Check if there's an agent intro (agent changed)
+            if (data.agent_intro) {
+                addSystemMessage(data.agent_intro);
+            }
+            
+            // Add the agent response
+            addMessage(data.response, false, data.agent);
+            
+            // Update sentiment indicator
+            updateSentimentDisplay(data.sentiment);
+        }
+        
+        function addMessage(text, isUser, agentName = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(isUser ? 'user-message' : 'agent-message');
+            
+            messageDiv.textContent = text;
+            
+            if (!isUser && agentName) {
+                const agentInfo = document.createElement('div');
+                agentInfo.classList.add('agent-info');
+                agentInfo.textContent = `${agentName.replace('_', ' ')}`;
+                messageDiv.appendChild(agentInfo);
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function addSystemMessage(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', 'system-message');
+            messageDiv.textContent = text;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function updateSentimentDisplay(sentiment) {
+            // Convert sentiment from -1...1 to 0%...100% for display
+            const position = ((sentiment + 1) / 2) * 100;
+            sentimentMarker.style.left = `${position}%`;
+        }
+        
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message === '') return;
+            
+            // Add user message to the chat
+            addMessage(message, true);
+            
+            // Clear input field
+            messageInput.value = '';
+            
+            // Send message via WebSocket if connected, otherwise use REST
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ message: message }));
+            } else {
+                sendMessageViaREST(message);
+            }
+        }
+        
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Initial connection
+        connectWebSocket();
+        
+        // Add welcome message
+        addSystemMessage("Welcome to the service chat system. How can we help you today?");
+    </script>
+</body>
+</html>

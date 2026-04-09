@@ -1,0 +1,7 @@
+# requirements.txt
+fastapi==0.104.1
+uvicorn==0.23.2
+requests==2.31.0
+nltk==3.9.1
+autogen==0.8.5
+pydantic==2.10.6

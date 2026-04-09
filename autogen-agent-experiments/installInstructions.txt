@@ -1,0 +1,13 @@
+  551  mkdir autogen
+  552  cd autogen/
+  554  conda create -n autogen python=3.11
+  555  conda activate autogen
+  556  pip install pyautogen
+  563  pip install ag2[openai]
+  566  export http_proxy=
+  567  export https_proxy=
+  569  pip install pandas
+  571  pip install yfinance
+  573  pip install response
+  584  python app.py 
+
