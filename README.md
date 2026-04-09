@@ -1,6 +1,6 @@
 # AG2 and AutoGen Projects
 
-This repository contains AG2 and AutoGen-related projects previously grouped under `01-ag2-autogen`.
+
 
 ## Projects
 
