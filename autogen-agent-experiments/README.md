@@ -14,6 +14,8 @@ This folder contains a collection of AG2 and AutoGen-based experiments, prototyp
 - `oracle-field-service-support-agent/`: field-service support workflow demo with knowledge-base and live-agent transfer concepts
 - `generated-artifacts/`: generated output such as charts and one-off artifacts
 
+Each main subproject now includes its own `README.md` with a short description and file guide.
+
 ## Notes
 - This is an experiments folder, not a single cohesive application.
 - Some scripts depend on local models, private systems, or internal endpoints.
